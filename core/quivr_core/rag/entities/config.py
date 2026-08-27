@@ -1,3 +1,17 @@
+# Copyright (c) Lineaje, Inc. All rights reserved.
+# Lineaje UnifAI guardrail  version=2.0.0-alpha
+def _lineaje_load_gr_client():
+    """Lineaje-added: load gr_stub_client.py without a pip dependency."""
+    import sys as _s, importlib.util as _ilu
+    from pathlib import Path as _P
+    n = "_lineaje_gr_stub_client"
+    if n in _s.modules: return _s.modules[n]
+    h = _P(__file__).resolve().parent
+    _cand = next((d / "gr_stub_client.py" for d in [h, *h.parents][:8] if (d / "gr_stub_client.py").is_file()), h / "gr_stub_client.py")
+    _spec = _ilu.spec_from_file_location(n, _cand)
+    _s.modules[n] = _m = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_m); return _m
+
 import logging
 import os
 import re
@@ -425,14 +439,24 @@ class LLMEndpointConfig(QuivrBaseConfig):
                     )
             if llm_model_config.max_output_tokens:
                 if self.max_output_tokens > llm_model_config.max_output_tokens:
+                    _lineaje_payload = f"Lowering max_output_tokens from {self.max_output_tokens} to {llm_model_config.max_output_tokens}"
+                    # LINEAJE: enforce() `_lineaje_payload` at agent->log log_emit — scan flagged AI_DAT_SEC_030 (Enforce minimum six-month log retention for high-risk AI systems). Mask/block; do not remove without review. site_id='site:sha256:6b7a773539e95ec25376a5d1df985f6cc9d2c1765512cdf7225bc5cf8aa5a8dd'
+                    _gr_client = _lineaje_load_gr_client()
+                    _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:6b7a773539e95ec25376a5d1df985f6cc9d2c1765512cdf7225bc5cf8aa5a8dd', phase='log_emit', boundary={'source': 'log', 'sink': 'log'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_010', 'guardrail_id': 'Mask PII in Logs', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='log')
+                    _lineaje_payload = _gr_client.enforce(_gr_site, _lineaje_payload, content_type='application/json')
                     logger.warning(
-                        f"Lowering max_output_tokens from {self.max_output_tokens} to {llm_model_config.max_output_tokens}"
+                        _lineaje_payload
                     )
                     self.max_output_tokens = llm_model_config.max_output_tokens
 
                 if self.max_output_tokens < MIN_OUTPUT_TOKENS:
+                    _lineaje_payload = f"max_output_tokens is too low: {self.max_output_tokens}. "
+                    # LINEAJE: enforce() `_lineaje_payload` at agent->log log_emit — scan flagged AI_DAT_SEC_030 (Enforce minimum six-month log retention for high-risk AI systems). Mask/block; do not remove without review. site_id='site:sha256:2985880eb6edf92bf1e4f6b511becbaf9d8c3ff208925fa13b8fe27e0c78b0bc'
+                    _gr_client = _lineaje_load_gr_client()
+                    _gr_site = _gr_client.SiteDescriptor(site_id='site:sha256:2985880eb6edf92bf1e4f6b511becbaf9d8c3ff208925fa13b8fe27e0c78b0bc', phase='log_emit', boundary={'source': 'log', 'sink': 'log'}, candidate_policies=[{'policy_id': 'AI_DAT_SEC_010', 'guardrail_id': 'Mask PII in Logs', 'policy_version': '2026.08.1'}], fail_mode='BLOCK', source_type='agent', destination_type='log')
+                    _lineaje_payload = _gr_client.enforce(_gr_site, _lineaje_payload, content_type='application/json')
                     logger.error(
-                        f"max_output_tokens is too low: {self.max_output_tokens}. "
+                        _lineaje_payload
                     )
                     raise ValueError(
                         f"max_output_tokens is too low: {self.max_output_tokens}. "
