@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install mcp
+        run: pip install "mcp>=1.9.0,<2"
       - name: Run Lineaje AI policy scan with fix PR
         env:
           LINEAJE_PAT_TOKEN: ${{ secrets.LINEAJE_PAT_TOKEN }}
