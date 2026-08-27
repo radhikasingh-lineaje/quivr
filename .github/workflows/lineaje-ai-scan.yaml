@@ -1,4 +1,5 @@
 name: Lineaje AI Scan
+
 on:
   workflow_dispatch:
     inputs:
@@ -9,9 +10,11 @@ on:
         description: "Branch to scan"
         required: true
         default: "main"
+
 jobs:
   lineaje-scan:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout target repo
         uses: actions/checkout@v4
@@ -20,17 +23,21 @@ jobs:
           ref: ${{ github.event.inputs.branch }}
           token: ${{ secrets.GITHUB_TOKEN }}
           path: target-repo
+
       - name: Checkout scanner scripts
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository }}
           path: .lineaje-scanner
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install dependencies
         run: pip install "mcp>=1.9.0,<2"
+
       - name: Run Lineaje AI policy scan with fix PR
         env:
           LINEAJE_PAT_TOKEN: ${{ secrets.LINEAJE_PAT_TOKEN }}
@@ -43,7 +50,8 @@ jobs:
             --branch "${{ github.event.inputs.branch }}" \
             --head-sha "$TARGET_SHA" \
             --create-fix-pr \
-          | tee scan_result.txt
+            | tee scan_result.txt
+
       - name: Publish scan result to job summary
         if: always()
         run: cat scan_result.txt >> $GITHUB_STEP_SUMMARY
