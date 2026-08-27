@@ -1,4 +1,4 @@
-name: Lineaje AI Scan
+name: Lineaje AI Policy Scan
 
 on:
   workflow_dispatch:
@@ -21,7 +21,6 @@ jobs:
         with:
           repository: ${{ github.event.inputs.source_repo }}
           ref: ${{ github.event.inputs.branch }}
-          token: ${{ secrets.GITHUB_TOKEN }}
           path: target-repo
 
       - name: Checkout scanner scripts
@@ -36,9 +35,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install "mcp>=1.9.0,<2"
+        run: pip install mcp==1.27.1
 
       - name: Run Lineaje AI policy scan with fix PR
+        timeout-minutes: 60
         env:
           LINEAJE_PAT_TOKEN: ${{ secrets.LINEAJE_PAT_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -49,9 +49,4 @@ jobs:
             --repo "${{ github.event.inputs.source_repo }}" \
             --branch "${{ github.event.inputs.branch }}" \
             --head-sha "$TARGET_SHA" \
-            --create-fix-pr \
-            | tee scan_result.txt
-
-      - name: Publish scan result to job summary
-        if: always()
-        run: cat scan_result.txt >> $GITHUB_STEP_SUMMARY
+            --create-fix-pr
