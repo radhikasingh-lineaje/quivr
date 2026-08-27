@@ -34,10 +34,11 @@ max_history: 10
 #   top_n: 5
 
 # Configuration for the LLM
+# When OLLAMA_CHAT_MODEL is set, this is overridden to use that Ollama model.
 llm_config:
 
   # maximum number of tokens passed to the LLM to generate the answer
-  max_output_tokens: 4000
+  max_output_tokens: 4096
 
   # temperature for the LLM
   temperature: 0.7

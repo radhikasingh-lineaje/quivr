@@ -1,13 +1,21 @@
 import logging
+import os
 
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
 
-from quivr_core.rag.entities.config import DefaultModelSuppliers, LLMEndpointConfig
+from quivr_core.rag.entities.config import (
+    DefaultModelSuppliers,
+    LLMEndpointConfig,
+    get_ollama_base_url,
+)
 from quivr_core.llm import LLMEndpoint
 
 logger = logging.getLogger("quivr_core")
+
+DEFAULT_OLLAMA_CHAT_MODEL = "llama3.2"
+DEFAULT_OLLAMA_EMBED_MODEL = "nomic-embed-text"
 
 
 async def build_default_vectordb(
@@ -30,7 +38,27 @@ async def build_default_vectordb(
         ) from e
 
 
+def using_ollama() -> bool:
+    return bool(os.getenv("OLLAMA_CHAT_MODEL") or os.getenv("OLLAMA_EMBED_MODEL"))
+
+
 def default_embedder() -> Embeddings:
+    if using_ollama():
+        try:
+            from langchain_ollama import OllamaEmbeddings
+
+            model = os.getenv("OLLAMA_EMBED_MODEL") or DEFAULT_OLLAMA_EMBED_MODEL
+            logger.debug("Loaded OllamaEmbeddings as default embedder for brain")
+            kwargs: dict = {"model": model}
+            base_url = get_ollama_base_url()
+            if base_url:
+                kwargs["base_url"] = base_url
+            return OllamaEmbeddings(**kwargs)
+        except ImportError as e:
+            raise ImportError(
+                "Please install langchain-ollama to use Ollama embeddings."
+            ) from e
+
     try:
         from langchain_openai import OpenAIEmbeddings
 
@@ -45,6 +73,17 @@ def default_embedder() -> Embeddings:
 
 def default_llm() -> LLMEndpoint:
     try:
+        if using_ollama():
+            model = os.getenv("OLLAMA_CHAT_MODEL") or DEFAULT_OLLAMA_CHAT_MODEL
+            logger.debug("Loaded ChatOllama as default LLM for brain")
+            return LLMEndpoint.from_config(
+                LLMEndpointConfig(
+                    supplier=DefaultModelSuppliers.OLLAMA,
+                    model=model,
+                    llm_base_url=get_ollama_base_url(),
+                )
+            )
+
         logger.debug("Loaded ChatOpenAI as default LLM for brain")
         llm = LLMEndpoint.from_config(
             LLMEndpointConfig(supplier=DefaultModelSuppliers.OPENAI, model="gpt-4o")

@@ -1,8 +1,52 @@
+import os
 import tempfile
+from uuid import uuid4
 
 import chainlit as cl
-from quivr_core import Brain
-from quivr_core.rag.entities.config import RetrievalConfig
+from quivr_core import Brain, register_processor
+from quivr_core.files.file import FileExtension
+from quivr_core.llm import LLMEndpoint
+from quivr_core.processor.implementations.simple_txt_processor import SimpleTxtProcessor
+from quivr_core.rag.entities.config import LLMEndpointConfig, RetrievalConfig
+
+# MegaParse is registered first for .txt but needs a NATS server. This example
+# only accepts plain text, so use the local processor instead.
+register_processor(FileExtension.txt, SimpleTxtProcessor, override=True)
+
+
+def _ollama_base_url() -> str:
+    return os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST") or "http://localhost:11434"
+
+
+def using_ollama() -> bool:
+    return bool(os.getenv("OLLAMA_CHAT_MODEL") or os.getenv("OLLAMA_EMBED_MODEL"))
+
+
+def build_ollama_llm_and_embedder():
+    try:
+        from langchain_ollama import ChatOllama, OllamaEmbeddings
+    except ImportError:
+        from langchain_community.chat_models import ChatOllama
+        from langchain_community.embeddings import OllamaEmbeddings
+
+    chat_model = os.getenv("OLLAMA_CHAT_MODEL") or "llama3.2"
+    embed_model = os.getenv("OLLAMA_EMBED_MODEL") or "nomic-embed-text"
+    base_url = _ollama_base_url()
+
+    llm_config = LLMEndpointConfig(
+        model=chat_model,
+        llm_base_url=base_url,
+        llm_api_key=os.getenv("OLLAMA_API_KEY") or "ollama",
+    )
+    chat = ChatOllama(
+        model=chat_model,
+        base_url=base_url,
+        temperature=llm_config.temperature,
+    )
+    llm = LLMEndpoint(llm=chat, llm_config=llm_config)
+    llm._supports_func_calling = False
+    embedder = OllamaEmbeddings(model=embed_model, base_url=base_url)
+    return llm, embedder
 
 
 @cl.on_chat_start
@@ -20,7 +64,8 @@ async def on_chat_start():
 
     file = files[0]
 
-    msg = cl.Message(content=f"Processing `{file.name}`...")
+    backend = "Ollama" if using_ollama() else "OpenAI"
+    msg = cl.Message(content=f"Processing `{file.name}` with {backend}...")
     await msg.send()
 
     with open(file.path, "r", encoding="utf-8") as f:
@@ -33,7 +78,16 @@ async def on_chat_start():
         temp_file.flush()
         temp_file_path = temp_file.name
 
-    brain = Brain.from_files(name="user_brain", file_paths=[temp_file_path])
+    brain_kwargs = {
+        "name": "user_brain",
+        "file_paths": [temp_file_path],
+    }
+    if using_ollama():
+        llm, embedder = build_ollama_llm_and_embedder()
+        brain_kwargs["llm"] = llm
+        brain_kwargs["embedder"] = embedder
+
+    brain = Brain.from_files(**brain_kwargs)
 
     # Store the file path in the session
     cl.user_session.set("file_path", temp_file_path)
@@ -48,12 +102,14 @@ async def on_chat_start():
 @cl.on_message
 async def main(message: cl.Message):
     brain = cl.user_session.get("brain")  # type: Brain
-    path_config = "basic_rag_workflow.yaml"
-    retrieval_config = RetrievalConfig.from_yaml(path_config)
-
     if brain is None:
         await cl.Message(content="Please upload a file first.").send()
         return
+
+    path_config = "basic_rag_workflow.yaml"
+    retrieval_config = RetrievalConfig.from_yaml(path_config)
+    # Keep the brain's LLM (Ollama or OpenAI) instead of the YAML OpenAI default
+    retrieval_config.llm_config = brain.llm.get_config()
 
     # Prepare the message for streaming
     msg = cl.Message(content="", elements=[])
@@ -64,7 +120,11 @@ async def main(message: cl.Message):
     elements = []
 
     # Use the ask_stream method for streaming responses
-    async for chunk in brain.ask_streaming(message.content, retrieval_config=retrieval_config):
+    async for chunk in brain.ask_streaming(
+        message.content,
+        run_id=uuid4(),
+        retrieval_config=retrieval_config,
+    ):
         await msg.stream_token(chunk.answer)
         for source in chunk.metadata.sources:
             if source.page_content not in saved_sources:

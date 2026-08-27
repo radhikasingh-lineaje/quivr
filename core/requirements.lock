@@ -126,6 +126,8 @@ langchain-experimental==0.3.3
     # via langchain-cohere
 langchain-mistralai==0.2.3
     # via quivr-core
+langchain-ollama==0.2.3
+    # via quivr-core
 langchain-openai==0.3.3
     # via quivr-core
 langchain-text-splitters==0.3.2

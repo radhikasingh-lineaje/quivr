@@ -181,6 +181,10 @@ class Brain:
             from langchain_openai import OpenAIEmbeddings
 
             embedder = OpenAIEmbeddings(**bserialized.embedding_config.config)
+        elif bserialized.embedding_config.embedder_type == "ollama_embedding":
+            from langchain_ollama import OllamaEmbeddings
+
+            embedder = OllamaEmbeddings(**bserialized.embedding_config.config)
         else:
             raise ValueError("unknown embedder")
 
@@ -238,7 +242,29 @@ class Brain:
                 config=self.embedder.dict(exclude={"openai_api_key"})
             )
         else:
-            raise Exception("can't serialize embedder other than openai for now")
+            try:
+                from langchain_ollama import OllamaEmbeddings
+            except ImportError:
+                OllamaEmbeddings = None  # type: ignore[misc, assignment]
+
+            if OllamaEmbeddings is not None and isinstance(
+                self.embedder, OllamaEmbeddings
+            ):
+                embedder_config = EmbedderConfig(
+                    embedder_type="ollama_embedding",
+                    config={
+                        "model": self.embedder.model,
+                        **(
+                            {"base_url": self.embedder.base_url}
+                            if getattr(self.embedder, "base_url", None)
+                            else {}
+                        ),
+                    },
+                )
+            else:
+                raise Exception(
+                    "can't serialize embedder other than openai or ollama for now"
+                )
 
         storage_config: Union[LocalStorageConfig, TransparentStorageConfig]
         # TODO : each instance should know how to serialize/deserialize itself

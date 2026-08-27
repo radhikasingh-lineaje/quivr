@@ -3,7 +3,7 @@ import os
 import pytest
 from langchain_core.language_models import FakeListChatModel
 from pydantic import ValidationError
-from quivr_core.rag.entities.config import LLMEndpointConfig
+from quivr_core.rag.entities.config import DefaultModelSuppliers, LLMEndpointConfig
 from quivr_core.llm import LLMEndpoint
 
 
@@ -46,3 +46,35 @@ def test_llm_endpoint_constructor():
     )
 
     assert not llm_endpoint.supports_func_calling()
+
+
+def test_llm_endpoint_from_config_ollama():
+    from langchain_ollama import ChatOllama
+
+    config = LLMEndpointConfig(
+        supplier=DefaultModelSuppliers.OLLAMA,
+        model="llama3",
+        llm_base_url="http://localhost:11434",
+    )
+    llm = LLMEndpoint.from_config(config)
+
+    assert not llm.supports_func_calling()
+    assert isinstance(llm._llm, ChatOllama)
+    assert llm.get_config().model == "llama3"
+    assert llm.get_config().supplier == DefaultModelSuppliers.OLLAMA
+    assert llm.info().llm_base_url == "http://localhost:11434"
+
+
+def test_llm_endpoint_from_config_ollama_llama32():
+    from langchain_ollama import ChatOllama
+
+    config = LLMEndpointConfig(
+        supplier=DefaultModelSuppliers.OLLAMA,
+        model="llama3.2",
+    )
+    llm = LLMEndpoint.from_config(config)
+
+    assert not llm.supports_func_calling()
+    assert isinstance(llm._llm, ChatOllama)
+    assert llm.get_config().model == "llama3.2"
+    assert llm.info().llm_base_url == "ollama"

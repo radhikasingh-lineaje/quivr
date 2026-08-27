@@ -34,6 +34,11 @@ def normalize_to_env_variable_name(name: str) -> str:
     return env_variable_name
 
 
+def get_ollama_base_url() -> str | None:
+    """Return the Ollama host from OLLAMA_BASE_URL or OLLAMA_HOST, if set."""
+    return os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST")
+
+
 class SpecialEdges(str, Enum):
     start = "START"
     end = "END"
@@ -75,6 +80,7 @@ class DefaultModelSuppliers(str, Enum):
     MISTRAL = "mistral"
     GROQ = "groq"
     GEMINI = "gemini"
+    OLLAMA = "ollama"
 
 
 class LLMConfig(QuivrBaseConfig):
@@ -275,6 +281,23 @@ class LLMModelConfig:
                 tokenizer_hub="Quivr/gemini-tokenizer",
             ),
         },
+        # Ollama tags (llama3.2, llama3.2:3b, llama3, ...) — more specific names first
+        DefaultModelSuppliers.OLLAMA: {
+            "llama3.2": LLMConfig(
+                max_context_tokens=128000,
+                max_output_tokens=8192,
+                tokenizer_hub=None,
+            ),
+            "llama3.1": LLMConfig(
+                max_context_tokens=128000,
+                max_output_tokens=8192,
+                tokenizer_hub=None,
+            ),
+            "llama3": LLMConfig(
+                max_context_tokens=8192,
+                tokenizer_hub=None,
+            ),
+        },
     }
 
     @classmethod
@@ -348,6 +371,15 @@ class LLMEndpointConfig(QuivrBaseConfig):
 
     def set_api_key(self, force_reset: bool = False):
         if not self.supplier:
+            return
+
+        if self.supplier == DefaultModelSuppliers.OLLAMA:
+            if force_reset or not self.env_variable_name:
+                self.env_variable_name = "OLLAMA_API_KEY"
+            if not self.llm_api_key or force_reset:
+                self.llm_api_key = os.getenv(self.env_variable_name)
+            if not self.llm_base_url:
+                self.llm_base_url = get_ollama_base_url()
             return
 
         # Check if the corresponding API key environment variable is set
@@ -604,6 +636,13 @@ class RetrievalConfig(QuivrBaseConfig):
 
     def __init__(self, **data):
         super().__init__(**data)
+        ollama_chat_model = os.getenv("OLLAMA_CHAT_MODEL")
+        if ollama_chat_model:
+            self.llm_config.supplier = DefaultModelSuppliers.OLLAMA
+            self.llm_config.model = ollama_chat_model
+            if not self.llm_config.llm_base_url:
+                self.llm_config.llm_base_url = get_ollama_base_url()
+            self.llm_config.set_llm_model_config()
         self.llm_config.set_api_key(force_reset=True)
 
 

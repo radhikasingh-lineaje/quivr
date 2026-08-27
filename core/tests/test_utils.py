@@ -13,6 +13,9 @@ from quivr_core.rag.utils import (
 def test_model_supports_function_calling():
     assert model_supports_function_calling("gpt-4") is True
     assert model_supports_function_calling("ollama3") is False
+    assert model_supports_function_calling("llama3") is False
+    assert model_supports_function_calling("llama3.2") is False
+    assert model_supports_function_calling("llama3.2:3b") is False
 
 
 def test_get_prev_message_incorrect_message():

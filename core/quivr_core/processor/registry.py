@@ -120,7 +120,8 @@ def defaults_to_proc_entries(
             )
 
     # TODO(@aminediro): Megaparse should register itself
-    # Append Megaparse
+    # Keep MegaParse as a fallback; local processors should win so .txt
+    # files work without a MegaParse NATS server.
     _append_proc_mapping(
         mapping=base_processors,
         file_exts=[
@@ -142,7 +143,7 @@ def defaults_to_proc_entries(
         ],
         cls_mod="quivr_core.processor.implementations.megaparse_processor.MegaparseProcessor",
         errtxt=f"can't import MegaparseProcessor. Please install quivr-core[{ext_str}] to access MegaparseProcessor",
-        priority=None,
+        priority=_LOWEST_PRIORITY,
     )
     return base_processors
 

@@ -10,7 +10,7 @@ from quivr_core.files.file import QuivrFileSerialized
 
 
 class EmbedderConfig(BaseModel):
-    embedder_type: Literal["openai_embedding"] = "openai_embedding"
+    embedder_type: Literal["openai_embedding", "ollama_embedding"] = "openai_embedding"
     # TODO: type this correctly
     config: Dict[str, Any]
 

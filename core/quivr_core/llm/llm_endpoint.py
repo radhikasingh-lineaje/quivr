@@ -1,7 +1,6 @@
 import logging
 import os
 import time
-from typing import Union
 from urllib.parse import parse_qs, urlparse
 
 import tiktoken
@@ -214,14 +213,7 @@ class LLMEndpoint:
         if hashed_config in cls._cache:
             return cls._cache[hashed_config]
 
-        _llm: Union[
-            AzureChatOpenAI,
-            ChatOpenAI,
-            ChatAnthropic,
-            ChatMistralAI,
-            ChatGoogleGenerativeAI,
-            ChatGroq,
-        ]
+        _llm: BaseChatModel
         try:
             if config.supplier == DefaultModelSuppliers.AZURE:
                 # Parse the URL
@@ -291,6 +283,20 @@ class LLMEndpoint:
                     max_tokens=config.max_output_tokens,
                     temperature=config.temperature,
                 )
+            elif config.supplier == DefaultModelSuppliers.OLLAMA:
+                try:
+                    from langchain_ollama import ChatOllama
+                except ImportError:
+                    from langchain_community.chat_models import ChatOllama
+
+                ollama_kwargs: dict = {
+                    "model": config.model,
+                    "temperature": config.temperature,
+                    "num_predict": config.max_output_tokens,
+                }
+                if config.llm_base_url:
+                    ollama_kwargs["base_url"] = config.llm_base_url
+                _llm = ChatOllama(**ollama_kwargs)
 
             else:
                 _llm = ChatOpenAI(
@@ -319,7 +325,13 @@ class LLMEndpoint:
         return LLMInfo(
             model=self._config.model,
             llm_base_url=(
-                self._config.llm_base_url if self._config.llm_base_url else "openai"
+                self._config.llm_base_url
+                if self._config.llm_base_url
+                else (
+                    "ollama"
+                    if self._config.supplier == DefaultModelSuppliers.OLLAMA
+                    else "openai"
+                )
             ),
             temperature=self._config.temperature,
             max_tokens=self._config.max_output_tokens,

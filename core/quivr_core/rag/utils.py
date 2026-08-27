@@ -26,7 +26,12 @@ logger = logging.getLogger("quivr_core")
 def model_supports_function_calling(model_name: str):
     models_not_supporting_function_calls: list[str] = ["llama2", "test", "ollama3"]
 
-    return model_name not in models_not_supporting_function_calls
+    if model_name in models_not_supporting_function_calls:
+        return False
+    # Ollama-style tags (llama3, llama3.2, llama3.1:8b, ...) do not use OpenAI tools
+    if model_name.startswith("llama2") or model_name.startswith("llama3"):
+        return False
+    return True
 
 
 def format_history_to_openai_mesages(
